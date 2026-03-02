@@ -29,11 +29,9 @@ jobs:
     
     - name: Start Tunnel
       run: |
-        # RDP টানেল তৈরি
         Start-Process -NoNewWindow -FilePath ".\ngrok" -ArgumentList "tcp 3389"
         Start-Sleep -Seconds 10
         
-        # IP Address সংগ্রহ
         $tunnel = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels"
         $public_url = $tunnel.tunnels[0].public_url
         $host_port = $public_url -replace "tcp://", ""
@@ -47,23 +45,6 @@ jobs:
         Write-Output "Username: runneradmin"
         Write-Output "Password: ${{ secrets.RDP_PASSWORD }}"
         Write-Output "========================================="
-        Write-Output "RDP will be active for 6 hours"
-        Write-Output "========================================="
-        
-        # তথ্য ফাইলে সংরক্ষণ
-        @"
-RDP INFORMATION
-===============
-Host: $host_port
-IP: $host_port
-Port: 3389
-Username: runneradmin
-Password: ${{ secrets.RDP_PASSWORD }}
-Created: $(Get-Date)
-Expires: $(Get-Date).AddHours(6)
-"@ | Out-File -FilePath "rdp_info.txt"
     
     - name: Keep Alive
-      run: |
-        Write-Output "RDP is running... (max 6 hours)"
-        Start-Sleep -Seconds 21600
+      run: Start-Sleep -Seconds 21600
