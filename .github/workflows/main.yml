@@ -21,36 +21,49 @@ jobs:
     - name: Configure Ngrok
       run: .\ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
     
-    - name: Start RDP Tunnel
-      run: |
-        Start-Process -NoNewWindow -FilePath ".\ngrok" -ArgumentList "tcp 3389"
-        Start-Sleep -Seconds 10
-        
-        $tunnel = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels"
-        $rdp_url = $tunnel.tunnels[0].public_url
-        
-        Write-Output "======================================"
-        Write-Output "RDP IS READY!"
-        Write-Output "======================================"
-        Write-Output "Connection: $rdp_url"
-        Write-Output "Username: runneradmin"
-        Write-Output "Password: ${{ secrets.RDP_PASSWORD }}"
-        Write-Output "======================================"
-    
     - name: Enable RDP
       run: |
         Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Value 0
     
-    - name: Create User
+    - name: Start Tunnel
       run: |
-        $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
-        New-LocalUser -Name "runneradmin" -Password $Password -PasswordNeverExpires -AccountNeverExpires
-        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
-        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
+        # RDP টানেল তৈরি
+        Start-Process -NoNewWindow -FilePath ".\ngrok" -ArgumentList "tcp 3389"
+        Start-Sleep -Seconds 10
+        
+        # IP Address সংগ্রহ
+        $tunnel = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels"
+        $public_url = $tunnel.tunnels[0].public_url
+        $host_port = $public_url -replace "tcp://", ""
+        
+        Write-Output "========================================="
+        Write-Output "🎉 RDP READY!"
+        Write-Output "========================================="
+        Write-Output "Host: $host_port"
+        Write-Output "IP: $host_port"
+        Write-Output "Port: 3389"
+        Write-Output "Username: runneradmin"
+        Write-Output "Password: ${{ secrets.RDP_PASSWORD }}"
+        Write-Output "========================================="
+        Write-Output "RDP will be active for 6 hours"
+        Write-Output "========================================="
+        
+        # তথ্য ফাইলে সংরক্ষণ
+        @"
+RDP INFORMATION
+===============
+Host: $host_port
+IP: $host_port
+Port: 3389
+Username: runneradmin
+Password: ${{ secrets.RDP_PASSWORD }}
+Created: $(Get-Date)
+Expires: $(Get-Date).AddHours(6)
+"@ | Out-File -FilePath "rdp_info.txt"
     
     - name: Keep Alive
       run: |
-        Write-Output "RDP running for 6 hours..."
+        Write-Output "RDP is running... (max 6 hours)"
         Start-Sleep -Seconds 21600
