@@ -1,0 +1,56 @@
+name: Free RDP Generator
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    
+    - name: Setup Ngrok
+      run: |
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive -Path "ngrok.zip" -DestinationPath "."
+        Remove-Item "ngrok.zip"
+    
+    - name: Configure Ngrok
+      run: .\ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+    
+    - name: Start RDP Tunnel
+      run: |
+        Start-Process -NoNewWindow -FilePath ".\ngrok" -ArgumentList "tcp 3389"
+        Start-Sleep -Seconds 10
+        
+        $tunnel = Invoke-RestMethod -Uri "http://127.0.0.1:4040/api/tunnels"
+        $rdp_url = $tunnel.tunnels[0].public_url
+        
+        Write-Output "======================================"
+        Write-Output "RDP IS READY!"
+        Write-Output "======================================"
+        Write-Output "Connection: $rdp_url"
+        Write-Output "Username: runneradmin"
+        Write-Output "Password: ${{ secrets.RDP_PASSWORD }}"
+        Write-Output "======================================"
+    
+    - name: Enable RDP
+      run: |
+        Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server" -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" -Name "UserAuthentication" -Value 0
+    
+    - name: Create User
+      run: |
+        $Password = ConvertTo-SecureString "${{ secrets.RDP_PASSWORD }}" -AsPlainText -Force
+        New-LocalUser -Name "runneradmin" -Password $Password -PasswordNeverExpires -AccountNeverExpires
+        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin"
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
+    
+    - name: Keep Alive
+      run: |
+        Write-Output "RDP running for 6 hours..."
+        Start-Sleep -Seconds 21600
